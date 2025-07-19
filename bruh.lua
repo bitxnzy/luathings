@@ -2,7 +2,7 @@ if game.GameId ~= 4509896324 then
 	return
 end
 
-if getgenv().executedEnabled == true then
+if getgenv().executedEnabled == "true" then
 	return warn("Cannot Run the script more than 1 time")
 end
 getgenv().executedEnabled = true
@@ -695,7 +695,9 @@ function webhookFunction()
 											AddComma(bossRushTokens),
 											AddComma(titantRushTokens),
 											AddComma(amountPearl),
-											AddComma(amountDuskPearl)
+											AddComma(amountDuskPearl),
+											AddComma(corals),
+											AddComma(treasure)
 										),
 										inline = true,
 									},
@@ -3437,43 +3439,77 @@ function autoFeedFunction()
 end
 
 function autoTraitFunction()
+	local Players = game:GetService("Players")
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
 	local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local retornoRemote = Remotes:WaitForChild("GetPlayerData")
 	local QuirksRoll = Remotes:WaitForChild("Quirks"):WaitForChild("Roll")
+	local player = Players.LocalPlayer
+
+	local selectedUnitStr = tostring(selectedUnitToRollPassive)
 	local selectedPassiveSet = {}
-	local Player = game:GetService("Players").LocalPlayer
 
 	if typeof(selectedPassive) == "table" then
 		for _, passive in ipairs(selectedPassive) do
 			selectedPassiveSet[passive] = true
+			print("Selected passive added to set:", passive)
 		end
+	else
+		print("selectedPassive is not a table or is nil.")
 	end
 
 	while getgenv().autoTraitEnabled == true do
-		local Select = Player.PlayerGui.QuirksUI.BG.Content.Selection.Select
-		local personagemName = Select:GetAttribute("Unit")
-		local quirk = Select:GetAttribute("Quirk")
-		local unitID = Select:GetAttribute("UnitID")
-		local quirkName = quirk or "None"
-		if selectedPassiveSet[quirkName] then
-			Window:Notify({
-				Title = "Passive Roll",
-				Description = "You got one of the selected Passives: " .. quirkName,
-				Lifetime = 3,
-			})
-			webhookTraitRerollFunction(quirkName, tostring(personagemName))
-			return
-		else
-			if quirkName == nil or quirkName == "None" then
-				QuirksRoll:InvokeServer(unitID)
-			else
-				QuirksRoll:InvokeServer(unitID, quirkName)
+		local retorno = retornoRemote:InvokeServer()
+		local unitData = retorno and retorno["UnitData"]
+
+		if typeof(unitData) == "table" then
+			for _, unitInfo in pairs(unitData) do
+				if typeof(unitInfo) == "table" and tostring(unitInfo["UnitID"]) == selectedUnitStr then
+					local personagemName = unitInfo["UnitName"]
+					local quirk = unitInfo["Quirk"]
+					local quirkName = quirk or "None"
+
+					print("=== Trait Roll Info ===")
+					print("Character Name:", personagemName)
+					print("Current Trait:", quirkName)
+					print("Unit ID:", unitInfo["UnitID"])
+
+					if selectedPassiveSet[quirkName] then
+						print("Found desired trait:", quirkName)
+						Window:Notify({
+							Title = "Passive Roll",
+							Description = "You got one of the selected Passives: " .. quirkName,
+							Lifetime = 3,
+						})
+						task.spawn(function()
+							print("Sending webhook about found trait...")
+							webhookTraitRerollFunction(quirkName, tostring(personagemName))
+						end)
+						return
+					else
+						print("Trait not desired, rerolling...")
+
+						if quirkName == nil or quirkName == "None" then
+							print("No trait found, invoking QuirksRoll with only unitID")
+							QuirksRoll:InvokeServer(selectedUnitStr)
+						else
+							print("Invoking QuirksRoll with unitID and current trait:", quirkName)
+							QuirksRoll:InvokeServer(selectedUnitStr, quirkName)
+						end
+
+						task.spawn(function()
+							print("Sending webhook about current trait...")
+							webhookTraitRerollFunction(quirkName, tostring(personagemName))
+						end)
+					end
+
+					break
+				end
 			end
+		else
+			print("unitData is not a valid table.")
 		end
-		task.spawn(webhookTraitRerollFunction, quirkName, tostring(personagemName))
-		-- while quirk == Select:GetAttribute("Quirk") and unitID == Select:GetAttribute("UnitID") do
-		-- 	task.wait()
-		-- end
+
 		task.wait(0.3)
 	end
 end
@@ -3578,7 +3614,16 @@ function autoStatFunction()
 								if matched then
 									Window:Notify({
 										Title = "Passive Roll",
-										Description = "You got it: " .. quirkName .. " Desgraça",
+										Description = "You got The Selected Stat:"
+											.. selectedTypeOfRollStat
+											.. " - "
+											.. tostring(selectedUnitToRollStat)
+											.. " - Speed: "
+											.. speedRank
+											.. " - Range: "
+											.. rangeRank
+											.. " - Damage: "
+											.. damageRank,
 										Lifetime = 3,
 									})
 									break
@@ -3855,6 +3900,8 @@ function getUnitRemoteFunction(remoteName, args, money)
 		or action == "Sell"
 		or action == "ChangeTargeting"
 		or action == "Ability"
+		or action == "SetAutoUpgrade"
+		or action == "ChangeAutoPriority"
 	then
 		if action == "Ability" and not getgenv().recordSkillEnabled then
 			return
@@ -4314,43 +4361,84 @@ local TowerInfos = require(game:GetService("ReplicatedStorage").Modules.TowerInf
 
 local cache = {}
 local originalNamecall
+
 originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 	local method = getnamecallmethod()
 	local args = { ... }
 	local remoteName = self.Name
 
 	if isRecording and not checkcaller() then
-		if method == "FireServer" and remoteName == "PlaceTower" and self.Parent == game.ReplicatedStorage.Remotes then
-			local InfoTower = TowerInfos[args[1]]
-			local InfoCost = InfoTower and InfoTower[0] and InfoTower[0].Cost
+		if method == "FireServer" and self.Parent == game.ReplicatedStorage.Remotes then
+			print("[FireServer] RemoteName:", remoteName)
 
-			local processedArgs = {
-				tostring(args[1]),
-				tostring(args[2]),
-			}
-			task.spawn(function()
-				getUnitRemoteFunction("PlaceTower", processedArgs, InfoCost)
-			end)
+			if remoteName == "PlaceTower" then
+				print("→ PlaceTower called")
+				local InfoTower = TowerInfos[args[1]]
+				local InfoCost = InfoTower and InfoTower[0] and InfoTower[0].Cost
+
+				print("Tower:", args[1], "Cost:", InfoCost)
+
+				local processedArgs = {
+					tostring(args[1]),
+					tostring(args[2]),
+				}
+				task.spawn(function()
+					print("→ Sending PlaceTower data to getUnitRemoteFunction")
+					getUnitRemoteFunction("PlaceTower", processedArgs, InfoCost)
+				end)
+
+			elseif remoteName == "SetAutoUpgrade" then
+				local processedArgs = {
+					tostring(args[1]),
+					tostring(args[2]),
+				}
+
+				task.spawn(function()
+					getUnitRemoteFunction("SetAutoUpgrade", processedArgs, InfoCost)
+				end)
+
+			elseif remoteName == "ChangeAutoPriority" then
+
+				local processedArgs = {
+					tostring(args[1]),
+				}
+				print("Arg:", processedArgs[1])
+
+				task.spawn(function()
+					getUnitRemoteFunction("ChangeAutoPriority", processedArgs, InfoCost)
+				end)
+			end
+
 		elseif method == "InvokeServer" and self.Parent == game.ReplicatedStorage.Remotes then
 			if remoteName == "Sell" or remoteName == "ChangeTargeting" or remoteName == "Ability" then
 				local results = { originalNamecall(self, ...) }
+
 				if results[1] ~= true then
+					print("→ InvokeServer returned false or error.")
 					return unpack(results)
 				end
+
 				task.spawn(function()
+					local pos = tostring(args[1]:GetAttribute("PlacePosition") or args[1]:GetAttribute("OriginalCFrame"))
 					getUnitRemoteFunction(remoteName, {
 						tostring(args[1]),
-						tostring(args[1]:GetAttribute("PlacePosition") or args[1]:GetAttribute("OriginalCFrame")),
+						pos,
 						args[2],
 					})
 				end)
+
 			elseif remoteName == "Upgrade" then
+
 				task.spawn(function()
 					local upgradeValue = args[1]:WaitForChild("Upgrade")
+
 					if cache[upgradeValue] then
+						print("→ Already processing this upgradeValue, skipping.")
 						return
 					end
+
 					cache[upgradeValue] = true
+
 					local con
 					con = upgradeValue:GetPropertyChangedSignal("Value"):Connect(function()
 						if not isRecording then
@@ -4362,13 +4450,13 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 						local Info = StatsCal.Game_Calculate(args[1])
 						local InfoTower = TowerInfos[args[1].Name]
 						local InfoUpgrade = InfoTower[upgradeValue.Value]
-						local InfoCost = InfoUpgrade
-							and InfoUpgrade.Cost
-							and (tonumber(InfoUpgrade.Cost) * Info.TotalCost)
+						local InfoCost = InfoUpgrade and InfoUpgrade.Cost and (tonumber(InfoUpgrade.Cost) * Info.TotalCost)
+
+						local pos = tostring(args[1]:GetAttribute("PlacePosition") or args[1]:GetAttribute("OriginalCFrame"))
 
 						getUnitRemoteFunction(remoteName, {
 							tostring(args[1]),
-							tostring(args[1]:GetAttribute("PlacePosition") or args[1]:GetAttribute("OriginalCFrame")),
+							pos,
 							args[2],
 						}, InfoCost)
 					end)
@@ -4379,6 +4467,7 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 
 	return originalNamecall(self, ...)
 end)
+
 
 task.spawn(function()
 	local player = game:GetService("Players").LocalPlayer
@@ -4986,6 +5075,18 @@ sections.MainSection3:Toggle({
 sections.MainSection4:Header({
 	Name = "Unit",
 })
+
+local DropdownUnitPassive = sections.MainSection4:Dropdown({
+	Name = "Select Unit",
+	Search = true,
+	Multi = false,
+	Required = true,
+	Options = ValuesUnitId,
+	Default = None,
+	Callback = function(value)
+		selectedUnitToRollPassive = value:match(".* | .* | (.+)")
+	end,
+}, "dropdownselectedUnitToRoll")
 
 local DropdownPassive = sections.MainSection4:Dropdown({
 	Name = "Select Passive",
