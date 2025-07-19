@@ -2,7 +2,7 @@ if game.GameId ~= 4509896324 then
 	return
 end
 
-if getgenv().executedEnabled == "A" then
+if getgenv().executedEnabled == true then
 	return warn("Cannot Run the script more than 1 time")
 end
 getgenv().executedEnabled = true
@@ -924,6 +924,21 @@ function webhookTraitRerollFunction(passivaConseguida, personagem)
 	end
 end
 
+function onlyFriendsFunction()
+	while getgenv().onlyFriendsEnabled == true do
+		local args = {
+			[1] = "FriendsOnly",
+		}
+
+		game:GetService("ReplicatedStorage")
+			:WaitForChild("Remotes")
+			:WaitForChild("Teleporter")
+			:WaitForChild("Interact")
+			:FireServer(unpack(args))
+		task.wait(1)
+	end
+end
+
 --Function in Game
 
 function autoGetEscanorAxeFunction()
@@ -1618,10 +1633,12 @@ function autoAbilitySkills()
 			end
 			table.insert(Towers[name], v)
 		end
+
 		for _ = 1, 4 do
 			while not (MacLib and MacLib.Options) do
 				task.wait(0.1)
 			end
+
 			local Unit = MacLib.Options[("autoAbilityDropdown%s"):format(_)].Value
 			local UseSkill1InWave = MacLib.Options[("skill1WaveSlider%s"):format(_)].Value
 			local OnlyuseSkill1inboss = MacLib.Options[("onlyUseSkill1InBossToggle%s"):format(_)].State
@@ -1634,7 +1651,8 @@ function autoAbilitySkills()
 			if OnlyuseSkill1inWave == false then
 				continue
 			end
-			if OnlyuseSkill1inWave and not (tonumber(waveValue.Value) >= tonumber(UseSkill1InWave)) then
+
+			if OnlyuseSkill1inWave and tonumber(waveValue.Value) < tonumber(UseSkill1InWave) then
 				continue
 			end
 
@@ -1642,32 +1660,39 @@ function autoAbilitySkills()
 				continue
 			end
 
-			for __, ohInstance1 in Towers[Unit] do
+			for _, ohInstance1 in pairs(Towers[Unit]) do
 				if not ohInstance1:FindFirstChild("Upgrade") then
 					continue
 				end
-				local Info = TowerInfos[ohInstance1.Name][ohInstance1.Upgrade.Value]
-				local Abilitys = Info and (Info.Ability or Info.Abilities) or nil
+
+				local Info = TowerInfos[ohInstance1.Name] and TowerInfos[ohInstance1.Name][ohInstance1.Upgrade.Value]
+				local Abilitys = Info and (Info.Ability or Info.Abilities)
 				if not Abilitys then
 					continue
 				end
-				for i = 1, (#Abilitys == 0 and 1 or #Abilitys) do
-					local Ability = Abilitys[i] or Abilitys
+
+				for i, Ability in pairs(Abilitys) do
 					local IsCdGlobal = Ability.IsCdGlobal
 					local AbilityName = Ability.Name
 
 					local Cooldowns = Scoped:ReplicaState("AbilityCooldowns")._EXTREMELY_DANGEROUS_usedAsValue
-					local Cooldown = IsCdGlobal and Cooldowns.Global[AbilityName]
-						or (Cooldowns.Towers[ohInstance1.Name] and Cooldowns.Towers[ohInstance1.Name][AbilityName])
+					local Cooldown = nil
+					if IsCdGlobal then
+						Cooldown = Cooldowns.Global and Cooldowns.Global[AbilityName]
+					else
+						Cooldown = Cooldowns.Towers 
+							and Cooldowns.Towers[ohInstance1.Name] 
+							and Cooldowns.Towers[ohInstance1.Name][AbilityName]
+					end
+
 					if Cooldown then
 						local RemainingTime = math.max(0, Cooldown.EndTime - ElapsedTime.Value)
 						if RemainingTime > 0 then
 							continue
 						end
 					end
-					pcall(function()
-						game:GetService("ReplicatedStorage").Remotes.Ability:InvokeServer(ohInstance1, i)
-					end)
+
+					game:GetService("ReplicatedStorage").Remotes.Ability:InvokeServer(ohInstance1, i)
 				end
 			end
 		end
@@ -1676,22 +1701,22 @@ end
 task.spawn(autoAbilitySkills)
 
 function autoBulmaSkillFunction()
-    while autoBulmaSkillEnabled == true do
-        local args = {
-            [1] = workspace:WaitForChild("Towers"):WaitForChild("Bulma"),
-            [2] = "Summon Wish Dragon"
-        }
+	while autoBulmaSkillEnabled == true do
+		local args = {
+			[1] = workspace:WaitForChild("Towers"):WaitForChild("Bulma"),
+			[2] = "Summon Wish Dragon",
+		}
 
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Ability"):InvokeServer(unpack(args))
-        task.wait(.5)
-        local args = {
-            [1] = workspace:WaitForChild("Towers"):WaitForChild("Bulma"),
-            [2] = tostring(selectedBulmaSkill)
-        }
+		game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Ability"):InvokeServer(unpack(args))
+		task.wait(0.5)
+		local args = {
+			[1] = workspace:WaitForChild("Towers"):WaitForChild("Bulma"),
+			[2] = tostring(selectedBulmaSkill),
+		}
 
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Ability"):InvokeServer(unpack(args))
-        task.wait(1)
-    end
+		game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Ability"):InvokeServer(unpack(args))
+		task.wait(1)
+	end
 end
 
 function autoUniversalSkillFunction()
@@ -2454,33 +2479,18 @@ function autoJoinStoryFunction()
 			local doorCFrame = GetCFrame(story)
 			game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(doorCFrame)
 			task.wait(1)
-			if getgenv().OnlyFriends == true then
-				local args = {
-					[1] = tostring(selectedStoryMap),
-					[2] = selectedActStory,
-					[3] = tostring(selectedDifficultyStory),
-					[4] = true,
-				}
-				game:GetService("ReplicatedStorage")
-					:WaitForChild("Remotes")
-					:WaitForChild("Story")
-					:WaitForChild("Select")
-					:InvokeServer(unpack(args))
-				selectedStoryYet = true
-			else
-				local args = {
-					[1] = tostring(selectedStoryMap),
-					[2] = selectedActStory,
-					[3] = tostring(selectedDifficultyStory),
-					[4] = false,
-				}
-				game:GetService("ReplicatedStorage")
-					:WaitForChild("Remotes")
-					:WaitForChild("Story")
-					:WaitForChild("Select")
-					:InvokeServer(unpack(args))
-				selectedStoryYet = true
-			end
+			local args = {
+				[1] = tostring(selectedStoryMap),
+				[2] = selectedActStory,
+				[3] = tostring(selectedDifficultyStory),
+				[4] = false,
+			}
+			game:GetService("ReplicatedStorage")
+				:WaitForChild("Remotes")
+				:WaitForChild("Story")
+				:WaitForChild("Select")
+				:InvokeServer(unpack(args))
+			selectedStoryYet = true
 			task.wait(1)
 			local argsTeleporter = {
 				[1] = "Skip",
@@ -2621,29 +2631,36 @@ end
 
 function autoCollectChestsFunction()
 	task.wait(2)
-	local Map = workspace:WaitForChild("Map", 1)
-	local lp = game:GetService("Players").LocalPlayer
+	local Players = game:GetService("Players")
+	local lp = Players.LocalPlayer
 	local char = lp.Character or lp.CharacterAdded:Wait()
 	local hrp = char:WaitForChild("HumanoidRootPart")
+
+	local Map = workspace:WaitForChild("Map", 1)
 	if not Map then
+		warn("Map não encontrado.")
 		return
 	end
-	local function fireProximityPrompts()
-		for _, chest in ipairs(workspace:GetChildren()) do
-			local num = tonumber(chest.Name)
-			if num and chest:IsA("Model") then
-				local prompt = chest:FindFirstChildWhichIsA("ProximityPrompt", true)
-				if prompt then
-					hrp.CFrame = chest:FindFirstChild("HumanoidRootPart").CFrame
-					fireproximityprompt(prompt)
-				end
-			end
-		end
+
+	local chestsFolder = Map:WaitForChild("Chests", 1)
+	if not chestsFolder then
+		warn("Chests folder não encontrado.")
+		return
 	end
 
-	while true do
-		fireProximityPrompts()
-		task.wait(1)
+	for _, chest in ipairs(chestsFolder:GetChildren()) do
+		local prompt = chest:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if prompt then
+			local chestPos = prompt.Parent:IsA("BasePart") and prompt.Parent
+				or chest:FindFirstChild("HumanoidRootPart")
+				or chest:FindFirstChildWhichIsA("BasePart")
+			if chestPos then
+				hrp.CFrame = chestPos.CFrame + Vector3.new(0, 2, 0)
+				task.wait(0.2)
+				fireproximityprompt(prompt)
+				task.wait(0.3)
+			end
+		end
 	end
 end
 
@@ -2657,31 +2674,17 @@ function autoJoinRaidFunction()
 				local doorCFrame = GetCFrame(door)
 				game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(doorCFrame)
 				task.wait(1)
-				if getgenv().OnlyFriends == true then
-					local argsRaid = {
-						[1] = selectedRaidMap,
-						[2] = selectedFaseRaid,
-						[3] = "Nightmare",
-						[4] = true,
-					}
-					game:GetService("ReplicatedStorage")
-						:WaitForChild("Remotes")
-						:WaitForChild("Raids")
-						:WaitForChild("Select")
-						:InvokeServer(unpack(argsRaid))
-				else
-					local argsRaid = {
-						[1] = selectedRaidMap,
-						[2] = selectedFaseRaid,
-						[3] = "Nightmare",
-						[4] = false,
-					}
-					game:GetService("ReplicatedStorage")
-						:WaitForChild("Remotes")
-						:WaitForChild("Raids")
-						:WaitForChild("Select")
-						:InvokeServer(unpack(argsRaid))
-				end
+				local args = {
+					[1] = "Select",
+					[2] = selectedRaidMap,
+					[3] = selectedFaseRaid,
+				}
+
+				game:GetService("ReplicatedStorage")
+					:WaitForChild("Remotes")
+					:WaitForChild("Teleporter")
+					:WaitForChild("Interact")
+					:FireServer(unpack(args))
 				task.wait(1)
 				local argsTeleporter = {
 					[1] = "Skip",
@@ -2705,7 +2708,7 @@ function teleportToNPC(npcName)
 	if npc then
 		local teleportCFrame = GetCFrame(npc)
 		if teleportCFrame then
-			game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(doorCFrame)
+			game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(teleportCFrame)
 			task.wait(1)
 		end
 	end
@@ -2715,22 +2718,17 @@ function joinInfCastleFunction()
 	while getgenv().joinInfCastleEnabled == true do
 		task.wait(getgenv().selectedDelay)
 		teleportToNPC("Asta")
-
-		if selectedRoomInfCastle then
-			task.wait(1)
-			local args = { "GetGlobalData" }
-			game:GetService("ReplicatedStorage")
-				:WaitForChild("Remotes")
-				:WaitForChild("InfiniteCastleManager")
-				:FireServer(unpack(args))
-			local args = { "Play", tonumber(selectedRoomInfCastle), false }
-			game:GetService("ReplicatedStorage")
-				:WaitForChild("Remotes")
-				:WaitForChild("InfiniteCastleManager")
-				:FireServer(unpack(args))
-			break
-		end
 		task.wait(1)
+		local startButton = game:GetService("Players").LocalPlayer.PlayerGui.InfinityCastle.Frame:GetChildren()[5].Frame.TextButton
+		local hardButton = game:GetService("Players").LocalPlayer.PlayerGui.InfinityCastle.Frame:GetChildren()[5].Frame:GetChildren()[4]
+		if hardModeEnabled == true then
+			firebutton(hardButton, "VirtualInputManager")
+			task.wait(1)
+			firebutton(startButton, "VirtualInputManager")
+		else
+			firebutton(startButton, "VirtualInputManager")
+		end
+		break
 	end
 end
 
@@ -2910,7 +2908,6 @@ local success, erro = pcall(function()
 					end
 					for challenge, portal in pairs(selectedPortalModifier) do
 						if PortalData.Challenges == portal then
-							print(portal, PortalData.Challenges, Position)
 							local prompt = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("Prompt")
 							local button2 = prompt.TextButton:FindFirstChild("TextButton")
 							if button2 then
@@ -3002,31 +2999,17 @@ function autoElementalCavernFunction()
 				local doorCFrame = GetCFrame(door)
 				game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(doorCFrame)
 				task.wait(1)
-				if getgenv().OnlyFriends == true then
-					local args = {
-						[1] = tostring(selectedCavern),
-						[2] = tostring(selectedDifficultyCavern),
-						[3] = true,
-					}
+				local args = {
+					[1] = "Select",
+					[2] = tostring(selectedCavern),
+					[3] = tostring(selectedDifficultyCavern),
+				}
 
-					game:GetService("ReplicatedStorage")
-						:WaitForChild("Remotes")
-						:WaitForChild("ElementalCaverns")
-						:WaitForChild("Select")
-						:InvokeServer(unpack(args))
-				else
-					local args = {
-						[1] = tostring(selectedCavern),
-						[2] = tostring(selectedDifficultyCavern),
-						[3] = false,
-					}
-
-					game:GetService("ReplicatedStorage")
-						:WaitForChild("Remotes")
-						:WaitForChild("ElementalCaverns")
-						:WaitForChild("Select")
-						:InvokeServer(unpack(args))
-				end
+				game:GetService("ReplicatedStorage")
+					:WaitForChild("Remotes")
+					:WaitForChild("Teleporter")
+					:WaitForChild("Interact")
+					:FireServer(unpack(args))
 				task.wait(1)
 				local argsTeleporter = {
 					[1] = "Skip",
@@ -3121,24 +3104,37 @@ function getCardPositionByY(scrollingFrame, card)
 end
 
 function deselectAllDebuffs(dungeonEntry)
-	local scrollingFrame = dungeonEntry.Frame.Frame:GetChildren()[3].Frame.ScrollingFrame
+	local scrollingFrame = dungeonEntry.Frame:GetChildren()[4]:GetChildren()[3].Frame.ScrollingFrame
 
 	for _, v in pairs(scrollingFrame:GetChildren()) do
 		if v:IsA("TextButton") then
 			local lvl1 = v:FindFirstChild("Frame")
 			if not lvl1 then
-				continue
-			end
-			local folder = lvl1:FindFirstChild("Folder")
-			if not folder then
-				continue
-			end
-			local sel = folder:FindFirstChild("Frame")
-			if not sel then
+				print(" -> lvl1 (Frame) não encontrado.")
 				continue
 			end
 
-			if sel then
+			local folder = lvl1:FindFirstChild("Folder")
+			if not folder then
+				print(" -> Folder não encontrado.")
+				continue
+			end
+
+			local outerFrame = folder:FindFirstChild("Frame")
+			if not outerFrame then
+				print(" -> Frame externo (container) não encontrado.")
+				continue
+			end
+
+			local isSelected = false
+			for _, child in ipairs(outerFrame:GetChildren()) do
+				if child:IsA("Frame") then
+					isSelected = true
+					break
+				end
+			end
+
+			if isSelected then
 				local pos = getCardPositionByY(scrollingFrame, v)
 				game:GetService("ReplicatedStorage")
 					:WaitForChild("Remotes")
@@ -3151,7 +3147,7 @@ function deselectAllDebuffs(dungeonEntry)
 end
 
 function selectDebuffs(dungeonEntry, debuffsList)
-	local scrollingFrame = dungeonEntry.Frame.Frame:GetChildren()[3].Frame.ScrollingFrame
+	local scrollingFrame = dungeonEntry.Frame:GetChildren()[4]:GetChildren()[3].Frame.ScrollingFrame
 	for _, debuffChoosed in pairs(debuffsList) do
 		for _, v in pairs(scrollingFrame:GetChildren()) do
 			if v:IsA("TextButton") then
@@ -3191,31 +3187,39 @@ function autoDungeonFunction()
 			and teleFolder.Dungeon
 			and teleFolder.Dungeon.Teleporter
 			and teleFolder.Dungeon.Teleporter.Door
+
 		if door and canTeleport then
 			local cf = GetCFrame(door)
 			game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(cf)
 		end
+
 		task.wait(2)
 		canTeleport = false
-
-		local dungeonEntry = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("DungeonEntry")
+		task.wait(1)
+		local dungeonEntry = game:GetService("Players").LocalPlayer.PlayerGui:WaitForChild("DungeonEntry", 1)
 		if not dungeonEntry then
+			print("DungeonEntry não encontrado. Encerrando loop.")
 			break
 		end
 
 		local btnOpen
 		if selectedDungeon == "Giant's Dungeon" then
-			btnOpen = dungeonEntry.Frame:GetChildren()[5].Frame.TextButton
+			btnOpen = dungeonEntry.Frame.Frame:GetChildren()[3].TextButton
+		elseif selectedDungeon == "Infernal Volcano" then
+			btnOpen = dungeonEntry.Frame.Frame:GetChildren()[3]:GetChildren()[4]
 		else
-			btnOpen = dungeonEntry.Frame:GetChildren()[5].Frame:GetChildren()[4]
+			btnOpen = dungeonEntry.Frame.Frame:GetChildren()[3]:GetChildren()[5]
 		end
 		firebutton(btnOpen, "getconnections")
+
 		task.wait(1)
 		deselectAllDebuffs(dungeonEntry)
+
 		task.wait(1)
 		selectDebuffs(dungeonEntry, selectedDungeonDebuff)
-		task.wait(1)
-		local btnConfirm = dungeonEntry.Frame.Frame.Frame:GetChildren()[6].TextButton
+
+		task.wait(3)
+		local btnConfirm = dungeonEntry.Frame:GetChildren()[4].Frame:GetChildren()[5].Frame.TextButton
 		firebutton(btnConfirm, "VirtualInputManager")
 		task.wait(1)
 		game:GetService("ReplicatedStorage")
@@ -3223,6 +3227,7 @@ function autoDungeonFunction()
 			:WaitForChild("Teleporter")
 			:WaitForChild("Interact")
 			:FireServer("Skip")
+
 		task.wait(1)
 	end
 end
@@ -3245,6 +3250,93 @@ function getCardPositionByY(scrollingFrame, card)
 	return nil
 end
 
+function deselectAllSurvivalDebuffs(survivalEntry)
+	local scrollingFrame = survivalEntry.Frame:GetChildren()[4]:GetChildren()[3].Frame.ScrollingFrame
+	for _, v in pairs(scrollingFrame:GetChildren()) do
+		if v:IsA("TextButton") then
+			local lvl1 = v:FindFirstChild("Frame")
+			if not lvl1 then
+				print(" -> lvl1 (Frame) não encontrado.")
+				continue
+			end
+
+			local folder = lvl1:FindFirstChild("Folder")
+			if not folder then
+				print(" -> Folder não encontrado.")
+				continue
+			end
+
+			local outerFrame = folder:FindFirstChild("Frame")
+			if not outerFrame then
+				print(" -> Frame externo (container) não encontrado.")
+				continue
+			end
+
+			local isSelected = false
+			for _, child in ipairs(outerFrame:GetChildren()) do
+				if child:IsA("Frame") then
+					isSelected = true
+					break
+				end
+			end
+
+			if isSelected then
+				local pos = getCardPositionByY(scrollingFrame, v)
+				local args = {
+					[1] = selectedSurvival,
+					[2] = pos,
+				}
+
+				game:GetService("ReplicatedStorage")
+					:WaitForChild("Remotes")
+					:WaitForChild("Survival")
+					:WaitForChild("ToggleModifier")
+					:FireServer(unpack(args))
+			else
+				print(" -> Debuff já desmarcado.")
+			end
+		end
+	end
+end
+
+function selectSurvivalDebuffs(survivalEntry, debuffsList)
+	local scrollingFrame = survivalEntry.Frame:GetChildren()[4]:GetChildren()[3].Frame.ScrollingFrame
+	for _, debuffChoosed in pairs(debuffsList) do
+		for _, v in pairs(scrollingFrame:GetChildren()) do
+			if v:IsA("TextButton") then
+				local lvl1 = v:FindFirstChild("Frame")
+				if not lvl1 then
+					continue
+				end
+
+				local lvl2 = lvl1:FindFirstChild("Frame")
+				if not lvl2 then
+					continue
+				end
+
+				local txt = lvl2:FindFirstChild("TextLabel")
+				if not txt then
+					continue
+				end
+
+				if txt.Text == debuffChoosed then
+					local pos = getCardPositionByY(scrollingFrame, v)
+					local args = {
+						[1] = tostring(selectedSurvival),
+						[2] = tonumber(pos),
+					}
+
+					game:GetService("ReplicatedStorage")
+						:WaitForChild("Remotes")
+						:WaitForChild("Survival")
+						:WaitForChild("ToggleModifier")
+						:FireServer(unpack(args))
+				end
+			end
+		end
+	end
+end
+
 function autoSurvivalFunction()
 	local canTeleport = true
 	while getgenv().autoSurvivalEnabled do
@@ -3254,10 +3346,12 @@ function autoSurvivalFunction()
 			and teleFolder.Survival
 			and teleFolder.Survival.Teleporter
 			and teleFolder.Survival.Teleporter.Door
+
 		if door and canTeleport then
 			local doorCFrame = GetCFrame(door)
 			game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(doorCFrame)
 		end
+
 		task.wait(2)
 		canTeleport = false
 
@@ -3267,127 +3361,29 @@ function autoSurvivalFunction()
 			break
 		end
 
-		local frame4 = survivalEntry.Frame and survivalEntry.Frame.Frame and survivalEntry.Frame.Frame:GetChildren()[4]
-		local qtdDebuffJaEscolhido
-		if
-			frame4
-			and frame4.Frame
-			and frame4.Frame.Frame
-			and frame4.Frame.Frame.Frame
-			and frame4.Frame.Frame.Frame.Frame
-		then
-			qtdDebuffJaEscolhido = frame4.Frame.Frame.Frame.Frame.TextLabel.Text
-		end
-
-		function handleSelection(debuffChoosed)
-			local scrollingFrame = frame4.Frame.ScrollingFrame
-			for _, v in pairs(scrollingFrame:GetChildren()) do
-				if v:IsA("TextButton") then
-					local posicao = getCardPositionByY(scrollingFrame, v)
-					local lvl1 = v:FindFirstChild("Frame")
-					if not lvl1 then
-						continue
-					end
-					local lvl2 = lvl1:FindFirstChild("Frame")
-					if not lvl2 then
-						continue
-					end
-					local txt = lvl2:FindFirstChild("TextLabel")
-					if not txt then
-						continue
-					end
-
-					if txt.Text == debuffChoosed then
-						game:GetService("ReplicatedStorage")
-							:WaitForChild("Remotes")
-							:WaitForChild("Survival")
-							:WaitForChild("ToggleModifier")
-							:FireServer(selectedSurvival, posicao)
-
-						local btnConfirm = survivalEntry.Frame.Frame:GetChildren()[3]:GetChildren()[7].TextButton
-						firebutton(btnConfirm, "VirtualInputManager")
-						task.wait(1)
-						local argsTeleporter = {
-							[1] = "Skip",
-						}
-						game:GetService("ReplicatedStorage")
-							:WaitForChild("Remotes")
-							:WaitForChild("Teleporter")
-							:WaitForChild("Interact")
-							:FireServer(unpack(argsTeleporter))
-					end
-				end
-			end
-		end
-
-		function handleAlreadySelected()
-			local scrollingFrame = frame4.Frame.ScrollingFrame
-			for _, v in pairs(scrollingFrame:GetChildren()) do
-				if v:IsA("TextButton") then
-					local posicao = getCardPositionByY(scrollingFrame, v)
-					local lvl1 = v:FindFirstChild("Frame")
-					if not lvl1 then
-						continue
-					end
-					local folder = lvl1:FindFirstChild("Folder")
-					if not folder then
-						continue
-					end
-					local sel = folder:FindFirstChild("Frame")
-					if not sel then
-						continue
-					end
-
-					if sel then
-						game:GetService("ReplicatedStorage")
-							:WaitForChild("Remotes")
-							:WaitForChild("Survival")
-							:WaitForChild("ToggleModifier")
-							:FireServer(selectedSurvival, posicao)
-					end
-				end
-			end
-		end
-
-		if selectedDifficultySurvival == "Normal" then
-			local btnOpen = survivalEntry.Frame.Frame.Frame.Frame.TextButton
-			firebutton(btnOpen, "getconnections")
-
-			if qtdDebuffJaEscolhido ~= "1/1 Selected" then
-				for _, debuffChoosed in pairs(selectedSurvivalDebuff) do
-					handleSelection(debuffChoosed)
-				end
-			else
-				handleAlreadySelected()
-			end
-		elseif selectedDifficultySurvival == "Nightmare" then
-			local btnOpen = survivalEntry.Frame.Frame.Frame.Frame:GetChildren()[4]
-			firebutton(btnOpen, "getconnections")
-
-			if qtdDebuffJaEscolhido ~= "1/2 Selected" and qtdDebuffJaEscolhido ~= "2/2 Selected" then
-				for _, debuffChoosed in pairs(selectedSurvivalDebuff) do
-					handleSelection(debuffChoosed)
-				end
-			else
-				handleAlreadySelected()
-			end
+		local btnOpen
+		if selectedSurvival == "Destroyed City" then
+			btnOpen = survivalEntry.Frame.Frame:GetChildren()[3]:GetChildren()[4]
+		elseif selectedSurvival == "Hell" then
+			btnOpen = survivalEntry.Frame.Frame:GetChildren()[3].TextButton
 		else
-			local btnOpen = survivalEntry.Frame.Frame.Frame.Frame:GetChildren()[5]
-			firebutton(btnOpen, "getconnections")
-
-			if
-				qtdDebuffJaEscolhido ~= "1/3 Selected"
-				and qtdDebuffJaEscolhido ~= "2/3 Selected"
-				and qtdDebuffJaEscolhido ~= "3/3 Selected"
-			then
-				for _, debuffChoosed in pairs(selectedSurvivalDebuff) do
-					handleSelection(debuffChoosed)
-				end
-			else
-				handleAlreadySelected()
-			end
+			btnOpen = survivalEntry.Frame.Frame:GetChildren()[3]:GetChildren()[5]
 		end
+
+		firebutton(btnOpen, "getconnections")
 		task.wait(1)
+		deselectAllSurvivalDebuffs(survivalEntry)
+		task.wait(1)
+		selectSurvivalDebuffs(survivalEntry, selectedSurvivalDebuff)
+		task.wait(1)
+		btnOpen = survivalEntry.Frame:GetChildren()[4].Frame:GetChildren()[5].Frame.TextButton
+		firebutton(btnOpen, "VirtualInputManager")
+		task.wait(1)
+		game:GetService("ReplicatedStorage")
+			:WaitForChild("Remotes")
+			:WaitForChild("Teleporter")
+			:WaitForChild("Interact")
+			:FireServer("Skip")
 	end
 end
 
@@ -3398,35 +3394,19 @@ function autoJoinLegendFunction()
 		local doorCFrame = GetCFrame(door)
 		game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(doorCFrame)
 		task.wait(1)
-		if getgenv().OnlyFriends == true then
-			local args = {
-				[1] = tostring(selectedLegendMap),
-				[2] = tonumber(selectedActLegend),
-				[3] = "Purgatory",
-				[4] = true,
-				[5] = true,
-			}
+		local args = {
+			[1] = "Select",
+			[2] = tostring(selectedLegendMap),
+			[3] = tonumber(selectedActLegend),
+			[4] = "Purgatory",
+			[5] = "LegendaryStages",
+		}
 
-			game:GetService("ReplicatedStorage")
-				:WaitForChild("Remotes")
-				:WaitForChild("Story")
-				:WaitForChild("Select")
-				:InvokeServer(unpack(args))
-		else
-			local args = {
-				[1] = tostring(selectedLegendMap),
-				[2] = tonumber(selectedActLegend),
-				[3] = "Purgatory",
-				[4] = false,
-				[5] = true,
-			}
-
-			game:GetService("ReplicatedStorage")
-				:WaitForChild("Remotes")
-				:WaitForChild("Story")
-				:WaitForChild("Select")
-				:InvokeServer(unpack(args))
-		end
+		game:GetService("ReplicatedStorage")
+			:WaitForChild("Remotes")
+			:WaitForChild("Teleporter")
+			:WaitForChild("Interact")
+			:FireServer(unpack(args))
 		task.wait(1)
 		local argsTeleporter = {
 			[1] = "Skip",
@@ -4392,7 +4372,6 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 							args[2],
 						}, InfoCost)
 					end)
-					print(con, "added")
 				end)
 			end
 		end
@@ -4982,7 +4961,8 @@ sections.MainSection3:Toggle({
 	Name = "Only Friends",
 	Default = false,
 	Callback = function(value)
-		getgenv().OnlyFriends = value
+		getgenv().OnlyFriendsEnabled = value
+		onlyFriendsFunction()
 	end,
 }, "onlyFriends")
 
@@ -5174,7 +5154,7 @@ local Dropdown = sections.MainSection9:Dropdown({
 	Name = "Select Difficulty",
 	Multi = false,
 	Required = true,
-	Options = { "Normal", "Nightmare", "Purgatory" },
+	Options = { "Normal", "Nightmare", "Purgatory", "Insanity" },
 	Default = None,
 	Callback = function(value)
 		selectedDifficultyStory = value
@@ -5343,7 +5323,7 @@ local Dropdown = sections.MainSection31:Dropdown({
 	Name = "Select Difficulty",
 	Multi = false,
 	Required = true,
-	Options = { "Normal", "Nightmare", "Purgatory" },
+	Options = { "Normal", "Nightmare", "Purgatory", "Insanity" },
 	Default = nil,
 	Callback = function(value)
 		selectedDifficultyCavern = value
@@ -5484,17 +5464,13 @@ sections.MainSection33:Header({
 	Name = "Infinite Castle",
 })
 
-sections.MainSection33:Input({
-	Name = "Choose Inf Castle Room",
-	Placeholder = "Press enter after paste",
-	AcceptedCharacters = "Number",
+sections.MainSection33:Toggle({
+	Name = "Hard Mode ",
+	Default = false,
 	Callback = function(value)
-		selectedRoomInfCastle = value
+		getgenv().hardModeEnabled = value
 	end,
-	onChanged = function(value)
-		selectedRoomInfCastle = value
-	end,
-}, "InfCastleRoom")
+}, "infCastleHardModeToggle")
 
 sections.MainSection33:Toggle({
 	Name = "Auto Inf Caslte",
@@ -5616,17 +5592,6 @@ local Dropdown = sections.MainSection14:Dropdown({
 		end
 	end,
 }, "dropdownSelectSurvivalDebuff")
-
-local Dropdown = sections.MainSection14:Dropdown({
-	Name = "Select Difficulty",
-	Multi = false,
-	Required = true,
-	Options = { "Normal", "Nightmare", "Purgatory" },
-	Default = nil,
-	Callback = function(value)
-		selectedDifficultySurvival = value
-	end,
-}, "dropdownSelectSurvivalDifficulty")
 
 sections.MainSection14:Toggle({
 	Name = "Auto Survival",
@@ -7502,7 +7467,7 @@ sections.MainSection25:Slider({
 	DisplayMethod = "Round",
 	Precision = 1,
 	Callback = function(scale)
-		resizeFrames(scale)
+		MacLib:changeUISize(scale)
 	end,
 }, "changeUISize")
 
