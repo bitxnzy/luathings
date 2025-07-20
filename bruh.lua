@@ -2,7 +2,7 @@ if game.GameId ~= 4509896324 then
 	return
 end
 
-if getgenv().executedEnabled == "true" then
+if getgenv().executedEnabled == true then
 	return warn("Cannot Run the script more than 1 time")
 end
 getgenv().executedEnabled = true
@@ -199,7 +199,7 @@ task.spawn(function()
 	local FusionPackage = game:GetService("ReplicatedStorage").FusionPackage
 	local v_u_2 = require(FusionPackage.Fusion)
 	local v_u_11 = require(game:GetService("ReplicatedStorage").Modules.ReplicaHolder.State)
-	local l_scoped_0 = v_u_2:FindFirstChild("scoped")
+	local l_scoped_0 = v_u_2.scoped
 	Scoped = l_scoped_0(v_u_2, v_u_11)
 end)
 
@@ -834,11 +834,12 @@ function webhookTraitRerollFunction(passivaConseguida, personagem)
 		local discordWebhookUrl = urlwebhook
 		local pingContent = ""
 		passivaPlayerGot = passivaConseguida
+
 		if passivaPlayerGot and passivaPlayerGot ~= "" then
 			traitStats[passivaPlayerGot] = (traitStats[passivaPlayerGot] or 0) + 1
 		end
-		personagemWhoGotThePassive = personagem
 
+		personagemWhoGotThePassive = personagem
 		local rerollsGastos = verifyRerolls() or 0
 		local rerollAtual = rerollAtual() or 0
 
@@ -857,6 +858,7 @@ function webhookTraitRerollFunction(passivaConseguida, personagem)
 				.. "** in "
 				.. rerollsGastos
 				.. " rolls"
+			print("[Webhook] Título embed:", title)
 		else
 			title = "❌ Didn't get desired passive on **" .. personagemWhoGotThePassive .. "**"
 			if ultimaPassiva then
@@ -865,11 +867,18 @@ function webhookTraitRerollFunction(passivaConseguida, personagem)
 		end
 
 		local images = {
-			["Glitched"] = "https://cdn.discordapp.com/attachments/1356784961688043572/1362638434715435179/latest.png?ex=68031f6f&is=6801cdef&hm=738b8389884cf75f7706bc8c05ca93e112e4beecd0c9611ebd99099b64b4958d&",
-			["Avatar"] = "https://cdn.discordapp.com/attachments/1356784961688043572/1362638206872453222/latest.png?ex=68031f39&is=6801cdb9&hm=e334ee0d9d08bbf6f2087e5f51e3cd738aff7b0cd2bd4d43f3d846a4ee9624fa&",
-			["Overlord"] = "https://cdn.discordapp.com/attachments/1356784961688043572/1362638220999004201/latest.png?ex=68031f3c&is=6801cdbc&hm=2d88e6129f3c9db207b06a5e8edcba37154e922aa4f957c27c47bd2391835db5&",
-			["Entrepreneur"] = "https://cdn.discordapp.com/attachments/1356784961688043572/1362638213335744704/latest.png?ex=68031f3a&is=6801cdba&hm=55418049253fcbc57e0a914add8d5155f4d6943b72907ea68f0df2c1c4147e4f&",
+			["Glitched"] = "https://cdn.discordapp.com/attachments/1356784961688043572/1362638434715435179/latest.png",
+			["Avatar"] = "https://cdn.discordapp.com/attachments/1356784961688043572/1362638206872453222/latest.png",
+			["Overlord"] = "https://cdn.discordapp.com/attachments/1356784961688043572/1362638220999004201/latest.png",
+			["Entrepreneur"] = "https://cdn.discordapp.com/attachments/1356784961688043572/1362638213335744704/latest.png",
 		}
+
+		local traitsRolledList = {}
+		for trait, count in pairs(traitStats) do
+			local traitInfo = trait .. ": " .. count
+			table.insert(traitsRolledList, traitInfo)
+		end
+
 		local payload = {
 			content = pingContent,
 			embeds = {
@@ -883,16 +892,7 @@ function webhookTraitRerollFunction(passivaConseguida, personagem)
 						},
 						{
 							name = "Traits Rolled Off This Session",
-							value = table.concat(
-								(function()
-									local t = {}
-									for trait, count in pairs(traitStats) do
-										table.insert(t, trait .. ": " .. count)
-									end
-									return t
-								end)(),
-								"\n"
-							),
+							value = table.concat(traitsRolledList, "\n"),
 						},
 					},
 				},
@@ -904,8 +904,6 @@ function webhookTraitRerollFunction(passivaConseguida, personagem)
 			payload.embeds[1].thumbnail = {
 				url = images[passivaPlayerGot],
 			}
-		else
-			return
 		end
 
 		local payloadJson = HttpService:JSONEncode(payload)
@@ -922,6 +920,7 @@ function webhookTraitRerollFunction(passivaConseguida, personagem)
 			end)
 			return
 		end
+
 		task.wait(0.5)
 	end
 end
@@ -1096,16 +1095,13 @@ end
 
 function autoStartFunction()
 	while getgenv().autoStartEnabled == true do
+		local storyRoomGui = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("StoryRoom")
 		if selectedStoryYet == true then
+			local startButton = storyRoomGui.Frame.Frame.Frame.Frame.Frame:GetChildren()[2]:GetChildren()[6].TextButton
 			task.wait(1)
-			local argsTeleporter = {
-				[1] = "Skip",
-			}
-			game:GetService("ReplicatedStorage")
-				:WaitForChild("Remotes")
-				:WaitForChild("Teleporter")
-				:WaitForChild("Interact")
-				:FireServer(unpack(argsTeleporter))
+			if startButton and startButton.Visible then
+				firebutton(startButton, "VirtualInputManager")
+			end
 			startedGame = true
 		end
 		task.wait()
@@ -1682,8 +1678,8 @@ function autoAbilitySkills()
 					if IsCdGlobal then
 						Cooldown = Cooldowns.Global and Cooldowns.Global[AbilityName]
 					else
-						Cooldown = Cooldowns.Towers 
-							and Cooldowns.Towers[ohInstance1.Name] 
+						Cooldown = Cooldowns.Towers
+							and Cooldowns.Towers[ohInstance1.Name]
 							and Cooldowns.Towers[ohInstance1.Name][AbilityName]
 					end
 
@@ -1765,7 +1761,7 @@ function autoRengokuModeFunction()
 			local remoteRengoku = game:GetService("ReplicatedStorage").Remotes:FindFirstChild("Ability")
 			if RengokuInMap and remoteRengoku and RengokuInMap.Upgrade.Value >= 10 then
 				local ohInstance1 = workspace.Towers.RengokuDemon
-				local ohNumber2 = 1
+				local ohNumber2 = "Demon Burst"
 				remoteRengoku:InvokeServer(ohInstance1, ohNumber2)
 				task.wait(1)
 				break
@@ -1784,7 +1780,7 @@ function autoArthurModeFunction()
 			local remoteArthur = game:GetService("ReplicatedStorage").Remotes:FindFirstChild("Ability")
 			if ArthurInMap and remoteArthur and ArthurInMap.Upgrade.Value >= 12 then
 				local ohInstance1 = workspace.Towers.ArthurStarRing
-				local ohNumber2 = 1
+				local ohNumber2 = "Elemental Power"
 				remoteArthur:InvokeServer(ohInstance1, ohNumber2)
 				task.wait(1)
 				break
@@ -1803,7 +1799,7 @@ function autoNinelModeFunction()
 			local remoteNinel = game:GetService("ReplicatedStorage").Remotes:FindFirstChild("Ability")
 			if NinelInMap and remoteNinel and NinelInMap.Upgrade.Value >= 11 then
 				local ohInstance1 = workspace.Towers.NoelEvoEZA
-				local ohNumber2 = 2
+				local ohNumber2 = "Water Nest"
 				remoteNinel:InvokeServer(ohInstance1, ohNumber2)
 				task.wait(1)
 				break
@@ -1826,7 +1822,7 @@ function autoCanrodCopyFunction()
 
 			if CanrodInMap and remoteCanrod and CanrodInMap.Upgrade.Value >= 4 and canrodSlots then
 				local ohInstance1 = workspace.Towers.CanrodEvo
-				local ohNumber2 = 2
+				local ohNumber2 = "Echo of Sealed power"
 
 				remoteCanrod:InvokeServer(ohInstance1, ohNumber2)
 				task.wait(3)
@@ -1854,7 +1850,7 @@ function autoKurumiSkillFunction()
 
 			if KurumiInMap and remoteKurumi and remoteAbility and KurumiInMap.Upgrade.Value >= 8 then
 				local ohInstance1 = workspace.Towers.KurumiEvo
-				local ohNumber2 = 1
+				local ohNumber2 = "Zaphkol"
 
 				remoteAbility:InvokeServer(ohInstance1, ohNumber2)
 				task.wait(3)
@@ -1882,7 +1878,7 @@ function autoGarouSkillFunction()
 
 			if GarouInMap and remoteGarou and remoteAbility and GarouInMap.Upgrade.Value >= 2 then
 				local ohInstance1 = workspace.Towers.CosmicGarou
-				local ohNumber2 = 1
+				local ohNumber2 = "Mode Swap"
 
 				remoteAbility:InvokeServer(ohInstance1, ohNumber2)
 				task.wait(3)
@@ -1909,7 +1905,7 @@ function autoShirouSkillFunction()
 
 			if ShirouInMap and remoteShirou and remoteAbility and ShirouInMap.Upgrade.Value >= 11 then
 				local ohInstance1 = workspace.Towers.ShirouEvo
-				local ohNumber2 = 1
+				local ohNumber2 = "Tracing"
 
 				remoteAbility:InvokeServer(ohInstance1, ohNumber2)
 				task.wait(3)
@@ -1937,7 +1933,7 @@ function autoGilgameshSkillFunction()
 
 			if GilgameshInMap and remoteGilgamesh and remoteAbility and GilgameshInMap.Upgrade.Value >= 10 then
 				local ohInstance1 = workspace.Towers.GilgameshEvoEZA
-				local ohNumber2 = 1
+				local ohNumber2 = "Sacred Treasures"
 
 				remoteAbility:InvokeServer(ohInstance1, ohNumber2)
 				task.wait(3)
@@ -1965,7 +1961,7 @@ function autoCanrodSkillFunction()
 
 			if CanrodInMap and remoteCanrod and remoteAbility and CanrodInMap.Upgrade.Value >= 1 then
 				local ohInstance1 = workspace.Towers.CanrodEvo
-				local ohNumber2 = 1
+				local ohNumber2 = "ElementalMastery"
 
 				remoteAbility:InvokeServer(ohInstance1, ohNumber2)
 				task.wait(3)
@@ -2481,17 +2477,35 @@ function autoJoinStoryFunction()
 			local doorCFrame = GetCFrame(story)
 			game.Players.LocalPlayer.Character:SetPrimaryPartCFrame(doorCFrame)
 			task.wait(1)
-			local args = {
-				[1] = tostring(selectedStoryMap),
-				[2] = selectedActStory,
-				[3] = tostring(selectedDifficultyStory),
-				[4] = false,
-			}
-			game:GetService("ReplicatedStorage")
-				:WaitForChild("Remotes")
-				:WaitForChild("Story")
-				:WaitForChild("Select")
-				:InvokeServer(unpack(args))
+			if selectedActStory == "Infinite" then
+				local args = {
+					[1] = "Select",
+					[2] = tostring(selectedStoryMap),
+					[3] = 1,
+					[4] = tostring(selectedDifficultyStory),
+					[5] = "Infinite",
+				}
+
+				game:GetService("ReplicatedStorage")
+					:WaitForChild("Remotes")
+					:WaitForChild("Teleporter")
+					:WaitForChild("Interact")
+					:FireServer(unpack(args))
+			else
+				local args = {
+					[1] = "Select",
+					[2] = tostring(selectedStoryMap),
+					[3] = selectedActStory,
+					[4] = tostring(selectedDifficultyStory),
+					[5] = "Story",
+				}
+
+				game:GetService("ReplicatedStorage")
+					:WaitForChild("Remotes")
+					:WaitForChild("Teleporter")
+					:WaitForChild("Interact")
+					:FireServer(unpack(args))
+			end
 			selectedStoryYet = true
 			task.wait(1)
 			local argsTeleporter = {
@@ -2678,8 +2692,8 @@ function autoJoinRaidFunction()
 				task.wait(1)
 				local args = {
 					[1] = "Select",
-					[2] = selectedRaidMap,
-					[3] = selectedFaseRaid,
+					[2] = tostring(selectedRaidMap),
+					[3] = tonumber(selectedFaseRaid),
 				}
 
 				game:GetService("ReplicatedStorage")
@@ -2687,6 +2701,7 @@ function autoJoinRaidFunction()
 					:WaitForChild("Teleporter")
 					:WaitForChild("Interact")
 					:FireServer(unpack(args))
+
 				task.wait(1)
 				local argsTeleporter = {
 					[1] = "Skip",
@@ -2721,8 +2736,11 @@ function joinInfCastleFunction()
 		task.wait(getgenv().selectedDelay)
 		teleportToNPC("Asta")
 		task.wait(1)
-		local startButton = game:GetService("Players").LocalPlayer.PlayerGui.InfinityCastle.Frame:GetChildren()[5].Frame.TextButton
-		local hardButton = game:GetService("Players").LocalPlayer.PlayerGui.InfinityCastle.Frame:GetChildren()[5].Frame:GetChildren()[4]
+		local startButton = game:GetService("Players").LocalPlayer.PlayerGui.InfinityCastle.Frame
+			:GetChildren()[5].Frame.TextButton
+		local hardButton = game:GetService("Players").LocalPlayer.PlayerGui.InfinityCastle.Frame
+			:GetChildren()[5].Frame
+			:GetChildren()[4]
 		if hardModeEnabled == true then
 			firebutton(hardButton, "VirtualInputManager")
 			task.wait(1)
@@ -3478,7 +3496,7 @@ function autoTraitFunction()
 						print("Found desired trait:", quirkName)
 						Window:Notify({
 							Title = "Passive Roll",
-							Description = "You got one of the selected Passives: " .. quirkName,
+							Description = "You got one of the selected Passives: " .. quirkName .. " for " .. tostring(personagemName),
 							Lifetime = 3,
 						})
 						task.spawn(function()
@@ -4386,7 +4404,6 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 					print("→ Sending PlaceTower data to getUnitRemoteFunction")
 					getUnitRemoteFunction("PlaceTower", processedArgs, InfoCost)
 				end)
-
 			elseif remoteName == "SetAutoUpgrade" then
 				local processedArgs = {
 					tostring(args[1]),
@@ -4396,9 +4413,7 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 				task.spawn(function()
 					getUnitRemoteFunction("SetAutoUpgrade", processedArgs, InfoCost)
 				end)
-
 			elseif remoteName == "ChangeAutoPriority" then
-
 				local processedArgs = {
 					tostring(args[1]),
 				}
@@ -4408,7 +4423,6 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 					getUnitRemoteFunction("ChangeAutoPriority", processedArgs, InfoCost)
 				end)
 			end
-
 		elseif method == "InvokeServer" and self.Parent == game.ReplicatedStorage.Remotes then
 			if remoteName == "Sell" or remoteName == "ChangeTargeting" or remoteName == "Ability" then
 				local results = { originalNamecall(self, ...) }
@@ -4419,16 +4433,15 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 				end
 
 				task.spawn(function()
-					local pos = tostring(args[1]:GetAttribute("PlacePosition") or args[1]:GetAttribute("OriginalCFrame"))
+					local pos =
+						tostring(args[1]:GetAttribute("PlacePosition") or args[1]:GetAttribute("OriginalCFrame"))
 					getUnitRemoteFunction(remoteName, {
 						tostring(args[1]),
 						pos,
 						args[2],
 					})
 				end)
-
 			elseif remoteName == "Upgrade" then
-
 				task.spawn(function()
 					local upgradeValue = args[1]:WaitForChild("Upgrade")
 
@@ -4450,9 +4463,12 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 						local Info = StatsCal.Game_Calculate(args[1])
 						local InfoTower = TowerInfos[args[1].Name]
 						local InfoUpgrade = InfoTower[upgradeValue.Value]
-						local InfoCost = InfoUpgrade and InfoUpgrade.Cost and (tonumber(InfoUpgrade.Cost) * Info.TotalCost)
+						local InfoCost = InfoUpgrade
+							and InfoUpgrade.Cost
+							and (tonumber(InfoUpgrade.Cost) * Info.TotalCost)
 
-						local pos = tostring(args[1]:GetAttribute("PlacePosition") or args[1]:GetAttribute("OriginalCFrame"))
+						local pos =
+							tostring(args[1]:GetAttribute("PlacePosition") or args[1]:GetAttribute("OriginalCFrame"))
 
 						getUnitRemoteFunction(remoteName, {
 							tostring(args[1]),
@@ -4467,7 +4483,6 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 
 	return originalNamecall(self, ...)
 end)
-
 
 task.spawn(function()
 	local player = game:GetService("Players").LocalPlayer
