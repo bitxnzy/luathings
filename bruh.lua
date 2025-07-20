@@ -2894,7 +2894,7 @@ function autoNextPortalFunction()
 				local player = game.Players.LocalPlayer
 				local uiEndGame = player:WaitForChild("PlayerGui"):WaitForChild("EndGameUI")
 				if uiEndGame and uiEndGame.Enabled == true then
-					task.wait(8)
+					task.wait(10)
 					local args = { tostring(portalId) }
 					game:GetService("ReplicatedStorage")
 						:WaitForChild("Remotes")
@@ -2929,27 +2929,33 @@ local success, erro = pcall(function()
 					for challenge, portal in pairs(selectedPortalModifier) do
 						if PortalData.Challenges == portal then
 							local prompt = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("Prompt")
-							local button2 = prompt.TextButton:FindFirstChild("TextButton")
+							local button2 = prompt.Frame:FindFirstChild("TextButton")
 							if button2 then
 								firebutton(button2, "getconnections")
 							end
-							local textButton = safeWaitForChild(prompt, "TextButton", 0.5)
-							if not textButton then
-								print("Break 1")
-								break
-							end
-							local frame = safeWaitForChild(textButton, "Frame", 0.5)
-							if not frame then
-								print("Break 2")
-								break
-							end
-							local children = frame:GetChildren()
 
+							local promptFrame = prompt:FindFirstChild("Frame")
+							if not promptFrame then
+								print("Break Prompt Frame")
+								break
+							end
+
+							local frameDoFrame = promptFrame:FindFirstChild("Frame")
+							if not frameDoFrame then
+								print("Break Frame Do Frame")
+								break
+							end
 							if Position == 1 then
-								local frameChild = children[4]
-								local button1 = frameChild and safeWaitForChild(frameChild, "TextButton", 0.5)
-
-								local button2 = children[5] and safeWaitForChild(children[5], "TextButton", 0.5)
+								local button1 = frameDoFrame:GetChildren()[4].Frame.TextButton
+								if not button1 then
+									print("Break Button 1")
+									break
+								end
+								local button2 = frameDoFrame:GetChildren()[5].TextButton
+								if not button2 then
+									print("Break Button 2")
+									break
+								end
 
 								if button1 and button2 then
 									firebutton(button1, "VirtualInputManager")
@@ -2959,11 +2965,16 @@ local success, erro = pcall(function()
 									break
 								end
 							elseif Position == 2 then
-								local subChildren = children[4] and children[4]:GetChildren()
-								local button1 = subChildren
-									and subChildren[2]
-									and safeWaitForChild(subChildren[2], "TextButton", 0.5)
-								local button2 = children[5] and safeWaitForChild(children[5], "TextButton", 0.5)
+								local button1 = frameDoFrame:GetChildren()[4]:GetChildren()[2].TextButton
+								if not button1 then
+									print("Break Button 1")
+									break
+								end
+								local button2 = frameDoFrame:GetChildren()[5].TextButton
+								if not button2 then
+									print("Break Button 2")
+									break
+								end
 
 								if button1 and button2 then
 									firebutton(button1, "VirtualInputManager")
@@ -2973,11 +2984,16 @@ local success, erro = pcall(function()
 									break
 								end
 							else
-								local subChildren = children[4] and children[4]:GetChildren()
-								local button1 = subChildren
-									and subChildren[3]
-									and safeWaitForChild(subChildren[3], "TextButton", 0.5)
-								local button2 = children[5] and safeWaitForChild(children[5], "TextButton", 0.5)
+								local button1 = frameDoFrame:GetChildren()[4]:GetChildren()[3].TextButton
+								if not button1 then
+									print("Break Button 1")
+									break
+								end
+								local button2 = frameDoFrame:GetChildren()[5].TextButton
+								if not button2 then
+									print("Break Button 2")
+									break
+								end
 
 								if button1 and button2 then
 									firebutton(button1, "VirtualInputManager")
@@ -3496,7 +3512,9 @@ function autoTraitFunction()
 						print("Found desired trait:", quirkName)
 						Window:Notify({
 							Title = "Passive Roll",
-							Description = "You got one of the selected Passives: " .. quirkName .. " for " .. tostring(personagemName),
+							Description = "You got one of the selected Passives: " .. quirkName .. " for " .. tostring(
+								personagemName
+							),
 							Lifetime = 3,
 						})
 						task.spawn(function()
@@ -4405,6 +4423,7 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 					getUnitRemoteFunction("PlaceTower", processedArgs, InfoCost)
 				end)
 			elseif remoteName == "SetAutoUpgrade" then
+				print("→ SetAutoUpgrade called")
 				local processedArgs = {
 					tostring(args[1]),
 					tostring(args[2]),
@@ -4414,6 +4433,7 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 					getUnitRemoteFunction("SetAutoUpgrade", processedArgs, InfoCost)
 				end)
 			elseif remoteName == "ChangeAutoPriority" then
+				print("→ ChangeAutoPriority called")
 				local processedArgs = {
 					tostring(args[1]),
 				}
@@ -4422,6 +4442,8 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 				task.spawn(function()
 					getUnitRemoteFunction("ChangeAutoPriority", processedArgs, InfoCost)
 				end)
+			else
+				print("→ RemoteName:", remoteName, "not handled in FireServer")
 			end
 		elseif method == "InvokeServer" and self.Parent == game.ReplicatedStorage.Remotes then
 			if remoteName == "Sell" or remoteName == "ChangeTargeting" or remoteName == "Ability" then
@@ -4477,6 +4499,28 @@ originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 						}, InfoCost)
 					end)
 				end)
+			elseif remoteName == "SetAutoUpgrade" then
+				print("→ SetAutoUpgrade called")
+				local processedArgs = {
+					tostring(args[1]),
+					tostring(args[2]),
+				}
+
+				task.spawn(function()
+					getUnitRemoteFunction("SetAutoUpgrade", processedArgs, InfoCost)
+				end)
+			elseif remoteName == "ChangeAutoPriority" then
+				print("→ ChangeAutoPriority called")
+				local processedArgs = {
+					tostring(args[1]),
+				}
+				print("Arg:", processedArgs[1])
+
+				task.spawn(function()
+					getUnitRemoteFunction("ChangeAutoPriority", processedArgs, InfoCost)
+				end)
+			else
+				print("→ RemoteName:", remoteName, "not handled in InvokeServer")
 			end
 		end
 	end
